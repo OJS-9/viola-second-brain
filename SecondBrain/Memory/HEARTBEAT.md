@@ -4,6 +4,7 @@
 
 ## Every run (every 30 min, 08:00–20:00 Asia/Jerusalem) *(inactive — Phase 6a)*
 
+- [ ] **Credentials health check FIRST**: ping each configured integration; on failure notify Or and skip dependent checks (never run blind — NanoClaw lesson)
 - [ ] Open Notion tasks: anything due in 48h with no recent activity? → nudge
 - [ ] New action items spotted in email → propose as Notion tasks (create only after approval)
 - [ ] Personal Google Calendar: next meeting soon? → prep prompt if it's an external meeting

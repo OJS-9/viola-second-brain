@@ -31,10 +31,13 @@ SecondBrain/Memory/
   MEMORY.md          # long-term facts, decisions, lessons — stays concise
   BOOTSTRAP.md       # first-run onboarding conversation script (deletes itself when done)
   HEARTBEAT.md       # checklist of what heartbeat runs monitor
+  index.md           # catalog of every vault page, updated on every ingest (NanoClaw lesson)
   daily/             # append-only daily logs YYYY-MM-DD.md
   meetings/          # meeting notes and decisions
-  companies/         # one file per startup/founder in play (deal flow context)
+  companies/         # one file per startup in play (deal flow context)
+  people/            # one file per founder/partner/ecosystem contact (NanoClaw lesson)
   research/          # DD research notes + sector research (cyber, AI infra, defense-tech)
+  research/sources/  # raw material (articles, exports, decks) — read-only once saved; notes cite it
   methods/           # Or's DD flow SOPs — living documents (see Phase 5)
   content/           # slide outlines, event content, digest archive
   drafts/active|sent|expired/   # email draft lifecycle (Phase 6)
@@ -168,6 +171,8 @@ The existing Claude Code connection + founder-classification skill. No Python mo
 **What:** The brain starts acting without being asked — on a schedule, within Advisor limits.
 
 **Key files:** `.claude/scripts/heartbeat.py`, `memory_reflect.py`, `weekly_digest.py`, `notifications.py`; state in `.claude/data/state/` (per-machine, not synced).
+
+> **NanoClaw production lessons applied to this phase** (see `docs/nanoclaw-lessons.md`): heartbeat starts with a **credentials health check** (ping each configured integration, alert Or before jobs run blind — NanoClaw's most repeated failure was silently-expired tokens); content that ships (digest, drafts, slides) passes **quality gates** (reviewer-persona check + Hebrew/English audit); Notion task sync **reconciles and flags discrepancies** — and escalates items that bounce repeatedly — instead of overwriting; weekly reflection includes a vault **lint** (contradictions, orphans, stale pages, index gaps); drafting uses a **distilled voice doc** refreshed from `drafts/sent/` in addition to RAG.
 
 **Heartbeat (every 30 min, active hours 08:00–20:00 Asia/Jerusalem):**
 - Python gathers first (cheap, deterministic): open Notion tasks, personal GCal, active drafts, digest state — all API-based. Outlook mail/calendar come via connector inside the SDK session if headless connector auth works (test first — see 4.3); otherwise they're covered by the on-session `morning-triage` flow instead. Then ONE Agent SDK `query()` call reasons over the bundle.

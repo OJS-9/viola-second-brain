@@ -18,7 +18,8 @@ Being built on a private MacBook (macOS) but will be moved to and run on a Windo
 
 ## Key paths
 
-- `SecondBrain/Memory/` — the memory vault (open `SecondBrain/` in Obsidian). Core files: SOUL.md (personality — write-protected), USER.md (profile + platform access map), MEMORY.md (long-term, keep concise), HEARTBEAT.md (proactive-run config, plain-text editable), BOOTSTRAP.md (onboarding — if present, run it), daily/ (append-only logs), companies/, research/, methods/ (living DD SOPs), content/, meetings/, drafts/active|sent|expired/, archive/.
+- `SecondBrain/Memory/` — the memory vault (open `SecondBrain/` in Obsidian). Core files: SOUL.md (personality — write-protected), USER.md (profile + platform access map), MEMORY.md (long-term, keep concise), HEARTBEAT.md (proactive-run config, plain-text editable), BOOTSTRAP.md (onboarding — if present, run it), daily/ (append-only logs), companies/, people/ (founders/partners), research/ + research/sources/ (raw material — never modify, cite it), methods/ (living DD SOPs), content/, meetings/, drafts/active|sent|expired/, archive/. A vault `index.md` catalogs pages once content exists (Phase 5).
+- `docs/nanoclaw-lessons.md` — production lessons from Or's personal agent, applied to Phases 5-6.
 - `.agent/plans/second-brain-prd.md` — the build plan (source of truth for phases)
 - `course-reference/` — workshop repo, read-only reference
 - `backport-ideas.md` — improvements to propose for NanoClaw (personal agent)

@@ -17,4 +17,4 @@
 
 ## Lessons
 
-- (grows over time via daily reflection)
+- **2026-07-03 — From NanoClaw's 2 months in production** (full notes: `docs/nanoclaw-lessons.md`): keep a vault `index.md` + run periodic lint; separate raw `sources/` from generated notes; ingest one source at a time (batching → shallow notes); people pages carry network memory; distill a voice doc instead of only RAG-ing examples; gate outgoing content (persona review + Hebrew/English audit); check integration credentials proactively — expired tokens silently killed NanoClaw jobs twice.

@@ -24,6 +24,11 @@ ones that hold up, then mark them with the issue link.
 - [ ] **3-layer input sanitization** — pattern detection → markdown escaping → XML trust
   boundaries on all external text (emails, messages) before the agent reads it.
 
+## Strong candidates (evidenced in NanoClaw's own logs, 2026-07-03 VPS review)
+
+- [ ] **Credentials health-check cron** — NanoClaw's ops log shows the Nimble OAuth token expiring twice in June 2026, silently gutting the weekly LinkedIn review and fully blocking the competitor-intel cron. A daily "ping every configured integration, alert on failure" job would have caught both. It monitors everything except its own tokens.
+- [ ] **Ops-log write locking/dedup** — duplicate consecutive entries visible in `groups/global/wiki/log.md` (e.g., the 2026-06-21 Typefully deletion logged twice). Verify whether concurrent writers are already serialized; if not, port the file-lock + dedup pattern from the second brain's `shared.py`.
+
 ## Opened Issues
 
 - (none yet)
