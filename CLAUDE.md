@@ -1,50 +1,56 @@
 # Second Brain
 
-Personal agentic second brain for Or, an investment analyst at Viola (VC). Built by following the Dynamous "claude-code-second-brain" workshop, but generated from a personalized PRD — not by copying the reference repo.
+Personal agentic second brain for Or, an investment analyst at Viola Ventures (VC). Built phase-by-phase from `.agent/plans/second-brain-prd.md` — generated from a personalized PRD, not copied from the reference repo.
 
 ## Who the user is
 
 - Beginner programmer: Python, SQL, Flask only. Explain in simple terms; no JS/TS unless asked.
-- Timezone: Asia/Jerusalem.
+- Timezone: Asia/Jerusalem. Languages: Hebrew + English.
 
 ## Critical constraint: cross-platform
 
 Being built on a private MacBook (macOS) but will be moved to and run on a Windows work PC (ThinkPad).
 
-- Write everything in Python with `pathlib` — no shell scripts as core logic.
-- Never hardcode absolute paths; derive paths from the project root.
-- Any macOS-specific piece (launchd scheduling, notifications) must have a documented Windows equivalent (Task Scheduler) planned.
-- No secrets in this folder or in memory files — secrets live in `.env` files that are gitignored.
+- Write everything in Python with `pathlib` — no shell scripts as core logic. Never hardcode absolute paths.
+- Never use macOS system Python (can't load SQLite extensions) — use uv-managed Python 3.12+.
+- Any macOS-specific piece (launchd, osascript notifications) must have a documented Windows equivalent (Task Scheduler, toast).
+- No secrets in the vault or memory files — secrets live in gitignored `.env` files. This repo must never get a public remote; work data stays local.
 
-## Project Structure
+## Key paths
 
-- `course-reference/` — the workshop repo (reference material)
-- `.claude/skills/create-second-brain-prd/` — generates the personalized build plan
-- `my-second-brain-requirements.md` — requirements form (fill before generating PRD)
-- `.agent/plans/second-brain-prd.md` — the generated build plan (once created)
+- `SecondBrain/Memory/` — the memory vault (open `SecondBrain/` in Obsidian). Core files: SOUL.md (personality — write-protected), USER.md (profile + platform access map), MEMORY.md (long-term, keep concise), HEARTBEAT.md (proactive-run config, plain-text editable), BOOTSTRAP.md (onboarding — if present, run it), daily/ (append-only logs), companies/, research/, methods/ (living DD SOPs), content/, meetings/, drafts/active|sent|expired/, archive/.
+- `.agent/plans/second-brain-prd.md` — the build plan (source of truth for phases)
+- `course-reference/` — workshop repo, read-only reference
+- `backport-ideas.md` — improvements to propose for NanoClaw (personal agent)
+
+## Vault conventions
+
+- Daily logs: `daily/YYYY-MM-DD.md`, append-only, timestamped entries.
+- Company/research notes carry YAML frontmatter (type, created, status, sources).
+- Factual claims tagged **[verified]** (2 independent sources) or **[unverified]**.
+- Archive, never delete: obsolete files move to `archive/` (or `drafts/expired/`).
 
 ## Build workflow
 
-1. Fill out `my-second-brain-requirements.md`.
-2. Run `/create-second-brain-prd ./my-second-brain-requirements.md` to generate the PRD.
-3. Build phase by phase from the PRD. Pause for the user's approval between phases.
-4. After each phase, update this file: new paths, commands, and conventions introduced.
+1. Build phase-by-phase from the PRD. Pause for Or's approval between phases.
+2. After each phase: update this file (paths, Build Commands, conventions) + mark Completed Phases + update the PRD if reality diverged.
+3. When a course pattern would improve NanoClaw, add it to `backport-ideas.md`.
+
+## Build Commands
+
+- (placeholder — populated as phases land; if a command isn't listed here, the agent doesn't know it exists)
 
 ## Completed Phases
 
-- (none yet — workspace setup only)
-
-## Standing goal: backport ideas to the personal agent
-
-The user also runs a personal agent, NanoClaw (`~/projects/nanoclaw_multi_agent`, github.com/OJS-9/nanoclaw_multi_agent), locally and on a VPS. While building this project, when a course pattern or a lesson learned would improve NanoClaw, add it to `backport-ideas.md`. Verify against the NanoClaw codebase before proposing a GitHub issue; get the user's OK before opening one.
+- **Phase 1 (2026-07-03):** Memory vault created at `SecondBrain/Memory/` with pre-filled SOUL/USER/MEMORY/HEARTBEAT from the requirements interview. BOOTSTRAP.md covers only remaining gaps (tone, drafting criteria, digest prefs, asset locations) — run it conversationally if present.
 
 ## Out of Scope
 
-- `course-reference/` — read-only reference. Never modify it; copy patterns out of it instead.
+- `course-reference/` — read-only reference. Never modify; copy patterns out instead.
 
 ## Approval Required
 
-The operating loop is: **agent drafts → user approves the specific item → agent executes**.
+The operating loop is: **agent drafts → Or approves the specific item → agent executes**.
 
 - Any external action (send email, post, create/update in Notion or other work tools) needs per-item approval first; after approval the agent executes it itself.
 - Modifying files outside the vault/workspace: agree on scope and exact change first.
