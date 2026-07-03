@@ -96,7 +96,7 @@ SecondBrain/Memory/
 
 ### 4.1 Notion (first — center of gravity)
 
-- **Auth:** internal integration token (`ntn_...`) in `.env`. **Viola dependency:** only workspace owners can create integrations, and enterprise workspaces can restrict connections to an approved list — likely one IT/admin request. **Dev path:** build against Or's personal Notion workspace on the Mac now; swap the token on the work PC later.
+- **Auth:** internal integration token (`ntn_...`) in `.env`. **Viola dependency:** only workspace owners can create integrations, and enterprise workspaces can restrict connections to an approved list — may need an admin. **Dev path:** build against Or's personal Notion workspace on the Mac now; swap the token on the work PC later. **If the work token is blocked:** fall back to the Notion Claude connector (same no-IT route as Outlook/Affinity) for on-session use, keeping the API module for whatever workspace the token can reach.
 - **SDK:** `notion-client` (ramnes/notion-sdk-py) v3.x. Pin `Notion-Version: 2025-09-03`.
 - **Critical post-2025 API model:** databases are containers; rows+schema live in **data sources**. Resolve once at startup: database ID (from URL, 32-hex before `?v=`) → `databases.retrieve` → `data_source_id`; cache it. Query via `data_sources.query` with filters/sorts; create pages with `parent={"type": "data_source_id", ...}`.
 - **Operations needed:** query tasks DB (open tasks, due dates) · create/update task pages (status property: values must already exist; `select` auto-creates, `status` does not) · create digest/DD report pages · append markdown-converted blocks.
@@ -112,20 +112,13 @@ SecondBrain/Memory/
 - **Retries:** on 429 (honor `retry_after`), 5xx, and 555 (render timeout) with backoff via `shared.with_retry()`; never retry 400/402 (out of credits). Rate limits (83 req/s) are a non-issue.
 - Key is on Viola's Nimble account — log credit usage per run so costs are visible.
 
-### 4.3 Outlook mail + calendar via Microsoft Graph (third — gated on IT)
+### 4.3 Outlook mail + calendar — via the Claude connector (no IT ticket)
 
-- **App registration:** portal.azure.com → Entra ID → new registration (single tenant) → platform "Mobile and desktop applications" with `http://localhost` redirect. Public client, no secret. Delegated scopes: `Mail.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.Read`.
-- **Reality check:** these scopes don't formally require admin consent, but most enterprise tenants disable user consent entirely → expect a "Need admin approval" screen and **one IT ticket** at Viola. Request it together with the Notion integration approval.
-- **Auth code:** `msal` + `requests` (skip the heavyweight `msgraph-sdk`). `PublicClientApplication` + `acquire_token_interactive` once, then `acquire_token_silent` forever; persist with `SerializableTokenCache` (refresh tokens last ~90 days, self-renewing on use; `msal-extensions` gives Keychain/DPAPI encryption on both OSes).
-- **The draft-approve-send loop maps 1:1 onto Graph:**
-  1. `POST /me/messages/{id}/createReply` → server-side draft with quoted history + recipients;
-  2. `PATCH` the draft body with the AI-written reply;
-  3. draft sits in Or's **Outlook Drafts folder** — reviewable in Outlook itself;
-  4. on approval: `POST /me/messages/{draftId}/send`.
-  Never use one-shot `sendMail` for replies.
-- **Inbox scan:** `GET /me/mailFolders/inbox/messages?$filter=receivedDateTime ge ... and isRead eq false&$select=id,subject,from,receivedDateTime,bodyPreview&$top=25`. Always `$select` minimal fields.
-- **Calendar:** `GET /me/calendarView?startDateTime=...&endDateTime=...` with header `Prefer: outlook.timezone="Israel Standard Time"` — expands recurring events.
-- Throttling (10K/10min per mailbox) is a non-issue; still honor `Retry-After` on 429.
+- **Decision (Or, 2026-07-03):** use the Outlook mail/calendar connectors attached to Or's Claude account — the same no-IT route Affinity already uses — instead of registering a Microsoft Graph app.
+- **How it works:** connector tools (read inbox/threads, read calendar, create drafts) are available in Claude Code / Claude Desktop sessions, and to Agent SDK sessions that load the user's MCP config (`setting_sources=["user"]` or explicit `mcp_servers`).
+- **The approval loop still holds:** agent reads a thread → writes the reply as a draft (connector draft tools where available; otherwise a markdown draft in `drafts/active/`) → Or approves → agent sends/finalizes.
+- **Known limitation — test early in Phase 6:** connectors are OAuth'd through the Claude app, so **headless scheduled runs may not reach them.** If the heartbeat can't use connectors, email/calendar triage becomes an on-session flow: a `morning-triage` command that runs when Or opens Claude (or once a day via the SessionStart hook) instead of background polling. The Notion + Nimble parts of the heartbeat are unaffected (API-based).
+- **Documented fallback only if connectors prove insufficient:** a direct Microsoft Graph app (single-tenant public client; delegated Mail.Read/ReadWrite/Send + Calendars.Read; `msal`+`requests` with `SerializableTokenCache`; createReply → PATCH → approve → `/send`; `calendarView` with `Prefer: outlook.timezone="Israel Standard Time"`). Full recipe goes in `docs/graph-fallback.md`. It costs one IT consent ticket — which is exactly why it's the fallback.
 
 ### 4.4 Google Calendar, personal (read-only, alongside 4.3)
 
@@ -133,11 +126,15 @@ SecondBrain/Memory/
 - **Gotcha to dodge on day one:** leave the consent screen in "Testing" and refresh tokens die every 7 days. **Publish the app to Production** (ignore verification; it's personal use) → tokens last indefinitely.
 - `events().list(calendarId="primary", timeMin/timeMax RFC3339 with offset, singleEvents=True, orderBy="startTime")`.
 
-### 4.5 Affinity — reuse the existing founder-classification skill; wrap it into the registry so heartbeat/DD flows can call it. No rebuild.
+### 4.5 Affinity — keep exactly as it works today
 
-### 4.6 Snowflake (deferred until on the work PC)
+The existing Claude Code connection + founder-classification skill. No Python module, no IT involvement. Just document it in USER.md/HEARTBEAT.md so DD flows know to call it, and keep usage read-only.
 
-- `snowflake-connector-python[pandas]`; auth via `authenticator="externalbrowser"` (corporate SSO — plain passwords are being phased out by Snowflake through Oct 2026). Ask IT for a read-only role; pass `role=` explicitly. `fetch_pandas_all()` for results. Enforces the read-only boundary at the infrastructure level.
+### 4.6 Snowflake — no direct connection (IT won't approve it). Use the data-drop pattern
+
+- Or exports query results himself (Snowsight → Download CSV/XLSX, or from the BI tool) into `SecondBrain/data-drops/`.
+- The agent detects new files, parses them with pandas, uses them read-only in analysis, then moves them to `data-drops/processed/` (moved, never deleted).
+- Zero credentials, zero IT surface — the read-only boundary is physical. Recurring needs (e.g., weekly portfolio metrics) become a documented 30-second export habit in HEARTBEAT.md.
 
 **Dependencies:** Phase 2 (shared.py). **Complexity: Medium per integration.**
 
@@ -150,9 +147,15 @@ SecondBrain/Memory/
 **Key files:** `.claude/skills/<name>/SKILL.md` (+ `scripts/`, `references/`).
 
 1. **`vault-structure`** — teaches the folder layout, file naming, YAML frontmatter conventions, checkbox syntax. Low.
-2. **`dd-flow`** — the research-methods builder. Interviews Or about how he currently DDs a company, drafts a step-by-step SOP into `SecondBrain/Memory/methods/dd-flow.md` (stages: founders → market → problem → solution → VC game plan, mirroring his framing), and — crucially — after each real DD, prompts a 5-minute retro that updates the SOP. The SOP is a living document; this is as much about Or building his own craft as automation. Adapt the course's `sop-creator` skill. Medium.
+2. **The DD skill family** — not one monolithic skill: one skill per DD dimension, mirroring how Or actually works, each maintaining its own living SOP in `SecondBrain/Memory/methods/`:
+   - `dd-market` — market sizing, category dynamics, timing ("why now")
+   - `dd-competition` — **wraps Or's existing competitors skill** (ready today — plug in, don't rebuild)
+   - `dd-founders` — background, track record, reference prep; pulls Affinity context
+   - `dd-problem-solution` — problem validation and product/solution assessment
+   - `dd-game-plan` — the VC thesis: round dynamics, ownership, why Viola wins
+   A shared `dd-core` reference defines common conventions: sourcing rules, verified/unverified tagging, output format. Each skill is built by interviewing Or about how he approaches that dimension today (sop-creator pattern), and after each real DD a 5-minute retro updates the relevant SOPs — Or is building his own craft here, not just automating. Skills ship incrementally: start with dd-competition (exists) + dd-market, add the rest as they're needed on real deals. Medium.
 3. **`slide-generator`** — python-pptx (v1.0.2, pure Python, no PowerPoint needed, identical on Mac/Windows) driven by a **JSON slide-spec** pattern: the agent emits `{"layout": "<name>", "placeholders": {idx: content}}`, a script renders it into Or's template deck. Setup step: get Or's slide framework .pptx, run an inspector script that dumps each layout's name + placeholder idx/types into `references/template-map.md`. Reference layouts by name, placeholders by idx. Text/bullets/images/native charts supported; the template owns all styling. Limitations to respect: add new slides from layouts (don't mutate existing ones), no SmartArt, no preview — output opens in PowerPoint for review (approval loop applies before any deck leaves the machine). Medium.
-4. **`dd-sidekick`** — the orchestrator skill: given a company name → Nimble search + extract (site, news, funding) → Affinity lookup → structured research note in `companies/` following the dd-flow SOP → sources cited → optionally render key findings through slide-generator. Every claim tagged verified/unverified (verification = second independent source). Medium-High (builds on everything).
+4. **`dd-sidekick`** — the orchestrator: given a company name → Nimble search + extract (site, news, funding) → Affinity lookup → invokes the relevant `dd-*` skills → assembles their outputs into one structured research note in `companies/`, sources cited → optionally renders key findings through slide-generator. Every claim tagged verified/unverified (verification = second independent source). Or can also run any single `dd-*` skill standalone when he only needs one dimension. Medium-High (builds on everything).
 
 **Dependencies:** Phases 1, 3, 4 (dd-sidekick needs search + integrations; vault-structure only needs Phase 1). **Complexity: Low-Medium overall.**
 
@@ -167,7 +170,7 @@ SecondBrain/Memory/
 **Key files:** `.claude/scripts/heartbeat.py`, `memory_reflect.py`, `weekly_digest.py`, `notifications.py`; state in `.claude/data/state/` (per-machine, not synced).
 
 **Heartbeat (every 30 min, active hours 08:00–20:00 Asia/Jerusalem):**
-- Python gathers first (cheap, deterministic): unread Outlook mail, today's calendarView + personal GCal, open Notion tasks, active drafts. Then ONE Agent SDK `query()` call reasons over the bundle.
+- Python gathers first (cheap, deterministic): open Notion tasks, personal GCal, active drafts, digest state — all API-based. Outlook mail/calendar come via connector inside the SDK session if headless connector auth works (test first — see 4.3); otherwise they're covered by the on-session `morning-triage` flow instead. Then ONE Agent SDK `query()` call reasons over the bundle.
 - SDK job config: `tools=["Read","Write","Edit"]` + same in `allowed_tools`, `permission_mode="dontAsk"`, `setting_sources=[]`, `max_turns` capped, `cwd=vault`, PreToolUse in-SDK hook fencing writes to the vault (compare paths with `Path.resolve()`/`is_relative_to` — never string prefixes, Windows uses `\`). Log `ResultMessage.total_cost_usd` per run to the daily log.
 - **State diffing:** snapshot integration data; only surface new/changed items — no repeat alerts.
 - **Notifications:** macOS `osascript` now; Windows toast (PowerShell BurntToast or `win11toast`) documented for Phase 9.
@@ -185,9 +188,9 @@ SecondBrain/Memory/
 
 ---
 
-## Phase 7: Chat Interface — DEFERRED
+## Phase 7: Chat Interface — RESOLVED: Claude Code / Claude Desktop
 
-Teams is barely used and WhatsApp has no official personal API (NanoClaw territory). v1 interface = Claude Code sessions + Outlook drafts + Notion pages + native notifications. Revisit after the system proves itself (options then: Teams bot via Azure Bot Framework, or a local web UI). **Not built now.**
+Or is happy operating through the Claude desktop app and terminal — that IS the chat interface. Nothing to build, and it's the environment where the connectors (Outlook, Affinity) are guaranteed to work. Outputs surface as Outlook drafts, Notion pages, vault files, and native notifications. **Phase dropped from the build.**
 
 ---
 
@@ -201,7 +204,7 @@ Teams is barely used and WhatsApp has no official personal API (NanoClaw territo
 - **`guard.py`** (PreToolUse on Bash + Write/Edit): the **no-delete rule** — block `rm`, `del`, `rmdir`, `shutil.rmtree`, `git clean`, moves to trash outside designated archive dirs; suggest `archive/` moves instead. Block writes outside project/vault without the approved-scope marker. Content checks happen in-script from `tool_input` (matchers only filter tool names).
 - **`sanitize.py`** — 3-layer defense for ALL external text (email bodies, scraped pages, Notion content) before it reaches an agent prompt: (1) pattern detection for injection attempts ("ignore previous instructions", tool-call-looking text) → flag + neutralize; (2) markdown escaping; (3) wrap in XML trust boundaries (`<external_data source="email">...`) with a system-prompt rule that instructions inside are data, never commands. Emails and scraped web pages are the #1 injection vector for a VC-facing assistant — pitch decks and founder emails are untrusted input by definition.
 - **Approval-loop enforcement:** send/post functions in integration modules require an `approved=True` argument that only the interactive approval path sets; heartbeat/background jobs physically can't pass it.
-- **Read-only org data:** Graph scopes stop at Mail + Calendars.Read; Snowflake uses a read-only role; Affinity skill stays read-only.
+- **Read-only org data:** Outlook connector usage stays read + draft (send only via the approval path); Snowflake is the credential-less data-drop pattern; Affinity skill stays read-only.
 - Test suite: attempt each forbidden action through the hooks and assert it's blocked (run on both OSes; recurring bugs get a pinned regression test).
 
 **Dependencies:** Phases 2, 4. **Complexity: Medium-High.**
@@ -216,7 +219,7 @@ Teams is barely used and WhatsApp has no official personal API (NanoClaw territo
 
 - **macOS (now):** launchd plists — heartbeat every 30 min, reflection daily 08:00, digest Sunday 08:00. Installing them = system change → Or's approval first.
 - **Windows (later):** Task Scheduler equivalents (`Register-ScheduledTask`, run `pythonw.exe`); ensure tasks run as the logged-in user (Claude subscription credentials + MSAL cache are per-user) and inherit no `ANTHROPIC_API_KEY`.
-- **Transfer runbook:** install Python 3.12/uv + Git (+ Git Bash — Claude Code's Bash tool needs it on Windows) → clone repo → `uv sync` → recreate `.env` → log in Claude Code (Viola sub) → re-auth Notion token (work workspace), MSAL interactive once, Google token, Nimble key → `memory_index.py --rebuild` → register scheduled tasks → run Phase 8 security tests + a manual heartbeat `--test`.
+- **Transfer runbook:** install Python 3.12/uv + Git (+ Git Bash — Claude Code's Bash tool needs it on Windows) → clone repo → `uv sync` → recreate `.env` → log in Claude Code (Viola sub) → reconnect connectors in the Claude app (Outlook, Affinity) → re-auth Notion token (work workspace), Google token, Nimble key → `memory_index.py --rebuild` → register scheduled tasks → run Phase 8 security tests + a manual heartbeat `--test`.
 - **Known Windows deltas (pre-researched):** Agent SDK — keep `cli_path` configurable (WinError 193 workaround) and prefer one-shot `query()` (client hangs reported); hooks run via Git Bash by default — exec-form Python hooks sidestep it; paths arrive with `\` (pathlib comparisons only); sqlite-vec has Windows wheels (numpy fallback ready if needed).
 - **Cost estimate:** infra $0 (all local). Claude usage on Viola's subscription (heartbeat ~$0.05/run notional → log actuals). Nimble: digest ≈ 12-16 lite searches + ~20 extracts/week ≈ ~$0.05/week at listed rates; DD sidekick usage variable — usage logged per run. Obsidian free.
 
@@ -229,14 +232,13 @@ Teams is barely used and WhatsApp has no official personal API (NanoClaw territo
 1. **Phase 1** — vault + CLAUDE.md rewrite (one session)
 2. **Phase 2** — hooks + memory flush (with baseline block_secrets)
 3. **Phase 3** — memory search
-4. **Phase 4.1 Notion** → **4.2 Nimble** (both testable on the Mac today) · 4.3/4.4 Outlook+GCal when IT consent lands (request early!) · 4.5 Affinity wrap · 4.6 Snowflake on work PC
-5. **Phase 5** — skills (vault-structure + dd-flow early; slide-generator once Or's template is in hand; dd-sidekick last)
-6. **Phase 6** — 6a heartbeat → 6b digest → 6c reflection → 6d draft lifecycle (6d needs Outlook)
+4. **Phase 4.1 Notion** → **4.2 Nimble** (both testable on the Mac today) · 4.3 Outlook connector (test SDK/headless access early) · 4.4 GCal · 4.5 Affinity as-is · 4.6 data-drop folder
+5. **Phase 5** — skills (vault-structure early; dd-competition wrap + dd-market first of the DD family; slide-generator once Or's template is in hand; dd-sidekick last)
+6. **Phase 6** — 6a heartbeat → 6b digest → 6c reflection → 6d draft lifecycle (6d shape depends on the 4.3 connector test)
 7. **Phase 8** — security hardening + tests
 8. **Phase 9** — schedulers + Windows transfer
-9. Phase 7 (chat) — deferred, revisit after a month of real use
 
-**Parallelizable:** 3 with 4.1/4.2; 5's early skills with 4. **Early asks for Or:** (a) IT ticket for Graph consent + Notion integration approval, (b) slide framework .pptx, (c) Nimble API key into `.env`.
+**Parallelizable:** 3 with 4.1/4.2; 5's early skills with 4. **Early asks for Or:** (a) slide framework .pptx, (b) Nimble API key into `.env`, (c) point me at the existing competitors skill so it can be wrapped into `dd-competition`.
 
 ---
 
