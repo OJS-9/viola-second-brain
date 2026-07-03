@@ -44,6 +44,10 @@ The user also runs a personal agent, NanoClaw (`~/projects/nanoclaw_multi_agent`
 
 ## Approval Required
 
-- Sending anything external (email, Slack, posts) on the user's behalf.
-- Deleting files outside `.agent/` scratch areas.
+The operating loop is: **agent drafts → user approves the specific item → agent executes**.
+
+- Any external action (send email, post, create/update in Notion or other work tools) needs per-item approval first; after approval the agent executes it itself.
+- Modifying files outside the vault/workspace: agree on scope and exact change first.
+- Never delete anything — no exceptions. Archive or move instead.
+- Work/org data access is read-only by default; never make purchases or modify financial data.
 - Installing global tools or changing system settings (schedulers, services).
