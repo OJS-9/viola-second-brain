@@ -1,0 +1,243 @@
+# Or's Second Brain — Build Plan (PRD)
+
+**Generated:** 2026-07-03
+**For:** Or, Investment Analyst at Viola Ventures
+**Summary:** A local, cross-platform (macOS → Windows) agentic second brain that acts as a due-diligence sidekick — researching companies, generating slides from Or's framework, keeping Notion tasks in sync, drafting email replies, and delivering a weekly cybersecurity / AI-infra / defense-tech digest. Operating mode: **Advisor with execute-on-approval** — the agent drafts, Or approves the specific item, the agent executes.
+
+---
+
+## Global conventions (apply to every phase)
+
+- **Language:** Python 3.12+ only, managed with `uv`. All paths via `pathlib`, derived from the project root — never hardcoded. No shell scripts as core logic.
+- **Cross-platform rule:** built and tested on macOS now; must run unchanged on Windows (work ThinkPad). Every OS-specific piece (scheduler, notifications, file locking) needs both implementations or a documented Windows path.
+- **Python gotcha (macOS):** never use Apple's system Python — it can't load SQLite extensions (needed in Phase 3). Use uv-managed or python.org/Homebrew Python.
+- **Secrets:** in `.claude/scripts/.env` (gitignored). The LLM never sees tokens — Python modules authenticate and pass only data (API key isolation).
+- **Timezone:** Asia/Jerusalem everywhere (heartbeat active hours, calendar queries, digest scheduling).
+- **Approval loop:** agent drafts → Or approves the specific item → agent executes. No external write (email send, Notion create/update outside its own areas, posts) without per-item approval. **Never delete anything** — archive/move instead.
+- **Claude auth:** the Agent SDK inherits Claude Code's login. On the work PC this is Viola's Claude subscription — leave `ANTHROPIC_API_KEY` unset in all scheduler environments so jobs bill the subscription, not an API key.
+- **After every phase:** update `CLAUDE.md` (new paths, build commands, conventions) and mark the phase in "Completed Phases". If a command isn't in CLAUDE.md, the agent doesn't know it exists.
+
+---
+
+## Phase 1: Foundation (Memory Layer)
+
+**What:** Create the memory vault — a folder of markdown files that is the brain's long-term memory, viewable in Obsidian.
+
+**Key files:**
+```
+SecondBrain/Memory/
+  SOUL.md            # personality: concise analyst-brief tone, advisor mode, boundaries
+  USER.md            # Or's profile: role, platforms, drafting criteria, account IDs (no secrets)
+  MEMORY.md          # long-term facts, decisions, lessons — stays concise
+  BOOTSTRAP.md       # first-run onboarding conversation script (deletes itself when done)
+  HEARTBEAT.md       # checklist of what heartbeat runs monitor
+  daily/             # append-only daily logs YYYY-MM-DD.md
+  meetings/          # meeting notes and decisions
+  companies/         # one file per startup/founder in play (deal flow context)
+  research/          # DD research notes + sector research (cyber, AI infra, defense-tech)
+  methods/           # Or's DD flow SOPs — living documents (see Phase 5)
+  content/           # slide outlines, event content, digest archive
+  drafts/active|sent|expired/   # email draft lifecycle (Phase 6)
+```
+
+- Vault root `SecondBrain/` sits inside the project; open it as an Obsidian vault (Obsidian is the viewer — everything works without it).
+- BOOTSTRAP.md drives a one-time interactive onboarding (communication style, drafting criteria, digest preferences) to fill USER.md/SOUL.md/HEARTBEAT.md; picks up where it left off if interrupted.
+- Rewrite root `CLAUDE.md` for the operational system: key paths, conventions above, "Build Commands" section (placeholder now, filled as phases land), Completed Phases.
+
+**Dependencies:** none. **Complexity: Low.**
+
+**Personalization:** folder set mirrors Or's memory categories (meetings, companies, research, methods, content, team context inside USER.md). SOUL.md encodes the advisor loop and "be the smartest in the room" digest mission.
+
+---
+
+## Phase 2: Hooks (Context Persistence)
+
+**What:** Wire Claude Code lifecycle hooks so every session starts with memory loaded and ends with an intelligent summary saved.
+
+**Key files:** `.claude/hooks/session_start_context.py`, `pre_compact_flush.py`, `session_end_flush.py`; `.claude/scripts/memory_flush.py`, `shared.py`; hook config in `.claude/settings.json`.
+
+**Implementation notes (researched, July 2026):**
+- Hook config lives in `.claude/settings.json` (committed); machine-specific interpreter overrides in `settings.local.json`. Use **exec form** for cross-platform: `{"type": "command", "command": "python", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/session_start_context.py"]}` — no shell involved, identical on Mac/Windows (ensure `python` on PATH via uv).
+- Hooks receive JSON on stdin: `session_id`, `transcript_path`, `cwd`, event fields. SessionStart injects context by printing `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "..."}}`; register it for matchers `startup`, `resume`, AND `compact` (re-inject after compaction).
+- SessionStart reads SOUL.md + USER.md + MEMORY.md + last 2 daily logs + BOOTSTRAP.md if present (onboarding trigger).
+- SessionEnd/PreCompact get `transcript_path` (conversation JSONL) — they spawn `memory_flush.py` **detached** (`subprocess.Popen`) and exit immediately; also mark hooks `"async": true`.
+- `memory_flush.py`: Agent SDK background job, `tools=[]` (pure reasoning — note: `tools`, not `allowed_tools`, is the capability restriction), `setting_sources=[]`, `max_turns=1`. Distills decisions/lessons/facts from the transcript into bullet points appended to the daily log. Dedup: skip if same session flushed <60s ago.
+- **Recursion guard:** every SDK job sets `os.environ["CLAUDE_INVOKED_BY"] = "<job>"`; SessionEnd/PreCompact hooks read it and exit 0 if set — otherwise SDK exits trigger new flushes infinitely.
+- `shared.py`: `file_lock()` (`msvcrt` Windows / `fcntl` Unix), `with_retry()` (exponential backoff for API calls), atomic writes (`.tmp` + `os.replace`). Everything that appends to daily logs or state files uses the lock.
+
+**Dependencies:** Phase 1. **Complexity: Medium.**
+
+---
+
+## Phase 3: Memory Search (Hybrid RAG)
+
+**What:** Local hybrid search over the vault — semantic + keyword — so the brain can find "that founder call about ARR" without exact words.
+
+**Key files:** `.claude/scripts/db.py`, `embeddings.py`, `memory_index.py`, `memory_search.py`. Index DB at `.claude/data/memory.db` (gitignored, regenerable).
+
+**Implementation notes (researched):**
+- **FastEmbed** (v0.8.x): `sentence-transformers/all-MiniLM-L6-v2`, 384-dim, ~90MB one-time download, ONNX/CPU (no PyTorch). Set `cache_dir` explicitly (project `.claude/data/models/`) — default is the temp dir.
+- **sqlite-vec** (v0.1.9): pip wheels for macOS arm64 AND Windows x64. Load via `sqlite_vec.load(db)` after `enable_load_extension(True)`. vec0 table: `embedding float[384] distance_metric=cosine` (default is L2 — set cosine explicitly). Brute-force scan is <10ms at our scale.
+- **FTS5** external-content table for keywords; `rank` is *negative* BM25 (lower = better) — negate before normalizing. Wrap query terms in quotes to dodge FTS5 syntax errors.
+- **Hybrid merge in Python:** top-20 from each side → min-max normalize each score set to 0–1 → `0.7 * vector + 0.3 * keyword` → top-N. 
+- **Incremental indexing:** files table with relative path + mtime + sha256; re-embed only changed files; sweep index rows for files that no longer exist (index is derived data — pruning it doesn't violate no-delete).
+- **Insurance:** put KNN behind a tiny interface (`knn(vec, k)`) with a numpy brute-force fallback (7MB RAM, <5ms at 5K chunks) in case sqlite-vec misbehaves on the work PC.
+- CLI: `memory_search.py "query" [--mode hybrid|keyword|semantic] [--path-prefix drafts/sent] [--limit N]`, `memory_index.py --rebuild|--stats`.
+
+**Dependencies:** Phase 1 (vault exists). **Complexity: Medium.**
+
+---
+
+## Phase 4: Integrations
+
+**What:** Python modules per platform, one pattern: dataclass → auth → query functions → context formatter → CLI subcommand. Registry detects which are configured; unified CLI `query.py <platform> <cmd>`.
+
+**Key files:** `.claude/scripts/integrations/registry.py`, `integration_template.py`, `notion_api.py`, `nimble_api.py`, `outlook_api.py`, `gcal_api.py`; CLI at `.claude/skills/direct-integrations/scripts/query.py`.
+
+### 4.1 Notion (first — center of gravity)
+
+- **Auth:** internal integration token (`ntn_...`) in `.env`. **Viola dependency:** only workspace owners can create integrations, and enterprise workspaces can restrict connections to an approved list — likely one IT/admin request. **Dev path:** build against Or's personal Notion workspace on the Mac now; swap the token on the work PC later.
+- **SDK:** `notion-client` (ramnes/notion-sdk-py) v3.x. Pin `Notion-Version: 2025-09-03`.
+- **Critical post-2025 API model:** databases are containers; rows+schema live in **data sources**. Resolve once at startup: database ID (from URL, 32-hex before `?v=`) → `databases.retrieve` → `data_source_id`; cache it. Query via `data_sources.query` with filters/sorts; create pages with `parent={"type": "data_source_id", ...}`.
+- **Operations needed:** query tasks DB (open tasks, due dates) · create/update task pages (status property: values must already exist; `select` auto-creates, `status` does not) · create digest/DD report pages · append markdown-converted blocks.
+- **Needs a small markdown→blocks converter** (headings, bullets, paragraphs) — Notion has no markdown input. Respect limits: 100 blocks per append, 2000 chars per rich_text, page_size ≤ 100, ~3 req/s (honor `Retry-After` on 429; SDK has a retry option).
+- Writes follow the approval loop: task status updates and page creations in the agent's own areas (digest pages, DD notes) are pre-approved by convention recorded in USER.md; anything touching shared team pages needs per-item approval.
+
+### 4.2 Nimbleway web research (second — no work accounts needed)
+
+- **Auth:** `Authorization: Bearer <API key>` (key from Account Settings → API Keys). Base: `https://sdk.nimbleway.com`. (Legacy `api.webit.live`/Basic-auth docs are outdated — ignore.)
+- **`POST /v1/search`** — the digest workhorse: `{"query", "focus": "news", "time_range": "week", "max_results": 10, "search_depth": "lite"}` → results with title/description/url. `deep` also fetches page content (+1 credit/page) — prefer `lite` + targeted extract.
+- **`POST /v1/extract`** — DD reading: `{"url", "formats": ["markdown"], "render": false}` → clean markdown at `data.markdown`. Default `render: false`; retry with `render: true` (driver vx8) only when markdown comes back thin. Client timeout 120s.
+- **SERP** (`/v1/serp`, `search_engine: "google_search"|"google_news"`) available for precise queries; always pass `no_html: true`.
+- **Retries:** on 429 (honor `retry_after`), 5xx, and 555 (render timeout) with backoff via `shared.with_retry()`; never retry 400/402 (out of credits). Rate limits (83 req/s) are a non-issue.
+- Key is on Viola's Nimble account — log credit usage per run so costs are visible.
+
+### 4.3 Outlook mail + calendar via Microsoft Graph (third — gated on IT)
+
+- **App registration:** portal.azure.com → Entra ID → new registration (single tenant) → platform "Mobile and desktop applications" with `http://localhost` redirect. Public client, no secret. Delegated scopes: `Mail.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.Read`.
+- **Reality check:** these scopes don't formally require admin consent, but most enterprise tenants disable user consent entirely → expect a "Need admin approval" screen and **one IT ticket** at Viola. Request it together with the Notion integration approval.
+- **Auth code:** `msal` + `requests` (skip the heavyweight `msgraph-sdk`). `PublicClientApplication` + `acquire_token_interactive` once, then `acquire_token_silent` forever; persist with `SerializableTokenCache` (refresh tokens last ~90 days, self-renewing on use; `msal-extensions` gives Keychain/DPAPI encryption on both OSes).
+- **The draft-approve-send loop maps 1:1 onto Graph:**
+  1. `POST /me/messages/{id}/createReply` → server-side draft with quoted history + recipients;
+  2. `PATCH` the draft body with the AI-written reply;
+  3. draft sits in Or's **Outlook Drafts folder** — reviewable in Outlook itself;
+  4. on approval: `POST /me/messages/{draftId}/send`.
+  Never use one-shot `sendMail` for replies.
+- **Inbox scan:** `GET /me/mailFolders/inbox/messages?$filter=receivedDateTime ge ... and isRead eq false&$select=id,subject,from,receivedDateTime,bodyPreview&$top=25`. Always `$select` minimal fields.
+- **Calendar:** `GET /me/calendarView?startDateTime=...&endDateTime=...` with header `Prefer: outlook.timezone="Israel Standard Time"` — expands recurring events.
+- Throttling (10K/10min per mailbox) is a non-issue; still honor `Retry-After` on 429.
+
+### 4.4 Google Calendar, personal (read-only, alongside 4.3)
+
+- Desktop OAuth (`google-auth-oauthlib`), scope `calendar.readonly`, token.json refresh pattern.
+- **Gotcha to dodge on day one:** leave the consent screen in "Testing" and refresh tokens die every 7 days. **Publish the app to Production** (ignore verification; it's personal use) → tokens last indefinitely.
+- `events().list(calendarId="primary", timeMin/timeMax RFC3339 with offset, singleEvents=True, orderBy="startTime")`.
+
+### 4.5 Affinity — reuse the existing founder-classification skill; wrap it into the registry so heartbeat/DD flows can call it. No rebuild.
+
+### 4.6 Snowflake (deferred until on the work PC)
+
+- `snowflake-connector-python[pandas]`; auth via `authenticator="externalbrowser"` (corporate SSO — plain passwords are being phased out by Snowflake through Oct 2026). Ask IT for a read-only role; pass `role=` explicitly. `fetch_pandas_all()` for results. Enforces the read-only boundary at the infrastructure level.
+
+**Dependencies:** Phase 2 (shared.py). **Complexity: Medium per integration.**
+
+---
+
+## Phase 5: Skills (Starter Pack)
+
+**What:** Teach the agent Or's ways of working as reusable skills.
+
+**Key files:** `.claude/skills/<name>/SKILL.md` (+ `scripts/`, `references/`).
+
+1. **`vault-structure`** — teaches the folder layout, file naming, YAML frontmatter conventions, checkbox syntax. Low.
+2. **`dd-flow`** — the research-methods builder. Interviews Or about how he currently DDs a company, drafts a step-by-step SOP into `SecondBrain/Memory/methods/dd-flow.md` (stages: founders → market → problem → solution → VC game plan, mirroring his framing), and — crucially — after each real DD, prompts a 5-minute retro that updates the SOP. The SOP is a living document; this is as much about Or building his own craft as automation. Adapt the course's `sop-creator` skill. Medium.
+3. **`slide-generator`** — python-pptx (v1.0.2, pure Python, no PowerPoint needed, identical on Mac/Windows) driven by a **JSON slide-spec** pattern: the agent emits `{"layout": "<name>", "placeholders": {idx: content}}`, a script renders it into Or's template deck. Setup step: get Or's slide framework .pptx, run an inspector script that dumps each layout's name + placeholder idx/types into `references/template-map.md`. Reference layouts by name, placeholders by idx. Text/bullets/images/native charts supported; the template owns all styling. Limitations to respect: add new slides from layouts (don't mutate existing ones), no SmartArt, no preview — output opens in PowerPoint for review (approval loop applies before any deck leaves the machine). Medium.
+4. **`dd-sidekick`** — the orchestrator skill: given a company name → Nimble search + extract (site, news, funding) → Affinity lookup → structured research note in `companies/` following the dd-flow SOP → sources cited → optionally render key findings through slide-generator. Every claim tagged verified/unverified (verification = second independent source). Medium-High (builds on everything).
+
+**Dependencies:** Phases 1, 3, 4 (dd-sidekick needs search + integrations; vault-structure only needs Phase 1). **Complexity: Low-Medium overall.**
+
+**Personalization:** slide framework from Or; DD stages from his own description; digest sectors (cyber/AI-infra/defense-tech) appear in Phase 6.
+
+---
+
+## Phase 6: Proactive Systems (Heartbeat + Reflection + Digest)
+
+**What:** The brain starts acting without being asked — on a schedule, within Advisor limits.
+
+**Key files:** `.claude/scripts/heartbeat.py`, `memory_reflect.py`, `weekly_digest.py`, `notifications.py`; state in `.claude/data/state/` (per-machine, not synced).
+
+**Heartbeat (every 30 min, active hours 08:00–20:00 Asia/Jerusalem):**
+- Python gathers first (cheap, deterministic): unread Outlook mail, today's calendarView + personal GCal, open Notion tasks, active drafts. Then ONE Agent SDK `query()` call reasons over the bundle.
+- SDK job config: `tools=["Read","Write","Edit"]` + same in `allowed_tools`, `permission_mode="dontAsk"`, `setting_sources=[]`, `max_turns` capped, `cwd=vault`, PreToolUse in-SDK hook fencing writes to the vault (compare paths with `Path.resolve()`/`is_relative_to` — never string prefixes, Windows uses `\`). Log `ResultMessage.total_cost_usd` per run to the daily log.
+- **State diffing:** snapshot integration data; only surface new/changed items — no repeat alerts.
+- **Notifications:** macOS `osascript` now; Windows toast (PowerShell BurntToast or `win11toast`) documented for Phase 9.
+- **Advisor behaviors:** notify + draft, never send. Email drafts: for messages matching USER.md drafting criteria → voice-match via `memory_search.py --path-prefix drafts/sent` → write markdown draft to `drafts/active/` (YAML frontmatter: type, source_id, recipient, subject, created, status) AND create the Graph reply draft in Outlook's Drafts folder. On Or's approval (in chat or by telling the heartbeat), the agent sends via `/send` and moves the file to `drafts/sent/` capturing final text (that corpus powers future voice-matching). Unactioned drafts >24h (or overtaken by a manual reply) → moved to `drafts/expired/` — moved, never deleted.
+- **Task check-ins:** compare Notion tasks against calendar/mail activity; nudge on stalled tasks ("X due Friday, no activity — still on track?") and propose new tasks spotted in email (created in Notion only after approval).
+
+**Weekly digest (separate job, Sunday 08:00):**
+- Per sector (cybersecurity, AI infra, defense-tech): 3-4 Nimble `/v1/search` queries (`focus: "news"`, `time_range: "week"` — funding rounds, launches, notable essays) → dedupe vs. previous digests (state file of seen URLs) → extract top items as markdown → one SDK call synthesizes an analyst-grade brief (what happened, why it matters for Viola, companies worth a look) → saved to `content/digests/YYYY-WNN.md` + created as a Notion page. Sector queries defined in `HEARTBEAT.md` so Or can edit them in plain text.
+
+**Daily reflection (08:00):** reviews yesterday's daily log, promotes durable items to MEMORY.md. **SOUL.md write-protection:** PreToolUse hook denies Edit/Write on SOUL.md for this job; identity-change suggestions go to the daily log for Or's review (prevents soul drift).
+
+**Habits:** skipped for v1 (not in Or's top tasks); the course pattern is documented in the reference repo if wanted later.
+
+**Dependencies:** Phases 2, 3, 4 (+ 5 for draft voice conventions). **Complexity: High** — split into 6a (heartbeat + notifications), 6b (digest), 6c (reflection), 6d (draft lifecycle).
+
+---
+
+## Phase 7: Chat Interface — DEFERRED
+
+Teams is barely used and WhatsApp has no official personal API (NanoClaw territory). v1 interface = Claude Code sessions + Outlook drafts + Notion pages + native notifications. Revisit after the system proves itself (options then: Teams bot via Azure Bot Framework, or a local web UI). **Not built now.**
+
+---
+
+## Phase 8: Security Hardening
+
+**What:** Enforce the boundaries in code, not vibes. (Baseline hooks land earlier; this phase completes and tests them.)
+
+**Key files:** `.claude/hooks/block_secrets.py`, `guard.py`, `.claude/scripts/sanitize.py`, `tests/test_security.py`.
+
+- **`block_secrets.py`** (PreToolUse, matcher `Read|Bash|Grep|Glob|Edit|Write`): deny access to `.env`, `token.json`, `msal_cache*`, `google_credentials*`, SSH keys, `repo-tokens`; deny Bash commands exposing env (`cat .env`, `printenv`, `echo $`, `os.environ` dumps); deny writing scripts that print secrets. Deny = `{"permissionDecision": "deny"}` JSON or exit 2 with stderr reason. Install this hook in **Phase 2** already; harden + test here.
+- **`guard.py`** (PreToolUse on Bash + Write/Edit): the **no-delete rule** — block `rm`, `del`, `rmdir`, `shutil.rmtree`, `git clean`, moves to trash outside designated archive dirs; suggest `archive/` moves instead. Block writes outside project/vault without the approved-scope marker. Content checks happen in-script from `tool_input` (matchers only filter tool names).
+- **`sanitize.py`** — 3-layer defense for ALL external text (email bodies, scraped pages, Notion content) before it reaches an agent prompt: (1) pattern detection for injection attempts ("ignore previous instructions", tool-call-looking text) → flag + neutralize; (2) markdown escaping; (3) wrap in XML trust boundaries (`<external_data source="email">...`) with a system-prompt rule that instructions inside are data, never commands. Emails and scraped web pages are the #1 injection vector for a VC-facing assistant — pitch decks and founder emails are untrusted input by definition.
+- **Approval-loop enforcement:** send/post functions in integration modules require an `approved=True` argument that only the interactive approval path sets; heartbeat/background jobs physically can't pass it.
+- **Read-only org data:** Graph scopes stop at Mail + Calendars.Read; Snowflake uses a read-only role; Affinity skill stays read-only.
+- Test suite: attempt each forbidden action through the hooks and assert it's blocked (run on both OSes; recurring bugs get a pinned regression test).
+
+**Dependencies:** Phases 2, 4. **Complexity: Medium-High.**
+
+---
+
+## Phase 9: Deployment (Local ×2: Mac dev → Windows prod)
+
+**What:** Schedulers on both machines + the transfer runbook. No VPS — deliberate decision (work data stays off personal infrastructure).
+
+**Key files:** `.claude/scripts/setup_scheduler_mac.py` (writes launchd plists), `setup_scheduler_windows.ps1` (Task Scheduler), `docs/windows-transfer.md`.
+
+- **macOS (now):** launchd plists — heartbeat every 30 min, reflection daily 08:00, digest Sunday 08:00. Installing them = system change → Or's approval first.
+- **Windows (later):** Task Scheduler equivalents (`Register-ScheduledTask`, run `pythonw.exe`); ensure tasks run as the logged-in user (Claude subscription credentials + MSAL cache are per-user) and inherit no `ANTHROPIC_API_KEY`.
+- **Transfer runbook:** install Python 3.12/uv + Git (+ Git Bash — Claude Code's Bash tool needs it on Windows) → clone repo → `uv sync` → recreate `.env` → log in Claude Code (Viola sub) → re-auth Notion token (work workspace), MSAL interactive once, Google token, Nimble key → `memory_index.py --rebuild` → register scheduled tasks → run Phase 8 security tests + a manual heartbeat `--test`.
+- **Known Windows deltas (pre-researched):** Agent SDK — keep `cli_path` configurable (WinError 193 workaround) and prefer one-shot `query()` (client hangs reported); hooks run via Git Bash by default — exec-form Python hooks sidestep it; paths arrive with `\` (pathlib comparisons only); sqlite-vec has Windows wheels (numpy fallback ready if needed).
+- **Cost estimate:** infra $0 (all local). Claude usage on Viola's subscription (heartbeat ~$0.05/run notional → log actuals). Nimble: digest ≈ 12-16 lite searches + ~20 extracts/week ≈ ~$0.05/week at listed rates; DD sidekick usage variable — usage logged per run. Obsidian free.
+
+**Dependencies:** everything prior. **Complexity: Medium.**
+
+---
+
+## Recommended build order
+
+1. **Phase 1** — vault + CLAUDE.md rewrite (one session)
+2. **Phase 2** — hooks + memory flush (with baseline block_secrets)
+3. **Phase 3** — memory search
+4. **Phase 4.1 Notion** → **4.2 Nimble** (both testable on the Mac today) · 4.3/4.4 Outlook+GCal when IT consent lands (request early!) · 4.5 Affinity wrap · 4.6 Snowflake on work PC
+5. **Phase 5** — skills (vault-structure + dd-flow early; slide-generator once Or's template is in hand; dd-sidekick last)
+6. **Phase 6** — 6a heartbeat → 6b digest → 6c reflection → 6d draft lifecycle (6d needs Outlook)
+7. **Phase 8** — security hardening + tests
+8. **Phase 9** — schedulers + Windows transfer
+9. Phase 7 (chat) — deferred, revisit after a month of real use
+
+**Parallelizable:** 3 with 4.1/4.2; 5's early skills with 4. **Early asks for Or:** (a) IT ticket for Graph consent + Notion integration approval, (b) slide framework .pptx, (c) Nimble API key into `.env`.
+
+---
+
+*This PRD was generated from `my-second-brain-requirements.md` on 2026-07-03 with per-API research current as of July 2026. Revisit and update as the system evolves — it is a living plan, and every completed phase should be reflected here and in CLAUDE.md.*
