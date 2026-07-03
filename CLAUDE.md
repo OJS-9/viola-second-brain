@@ -34,6 +34,10 @@ Being built on a private MacBook (macOS) but will be moved to and run on a Windo
 
 - (none yet — workspace setup only)
 
+## Standing goal: backport ideas to the personal agent
+
+The user also runs a personal agent, NanoClaw (`~/projects/nanoclaw_multi_agent`, github.com/OJS-9/nanoclaw_multi_agent), locally and on a VPS. While building this project, when a course pattern or a lesson learned would improve NanoClaw, add it to `backport-ideas.md`. Verify against the NanoClaw codebase before proposing a GitHub issue; get the user's OK before opening one.
+
 ## Out of Scope
 
 - `course-reference/` — read-only reference. Never modify it; copy patterns out of it instead.

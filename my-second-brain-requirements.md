@@ -87,7 +87,7 @@ What types of knowledge matter most to you? Check all that apply and add your ow
 ## 7. Infrastructure
 
 - **Operating System:** [x] Windows [x] macOS [ ] Linux (building on a private MacBook, will run on the Windows work PC — must be cross-platform)
-- **Deployment:** [ ] Local only [ ] Local + cloud server (VPS)
+- **Deployment:** [x] Local only [ ] Local + cloud server (VPS) — deliberate decision: work email/Dropbox data and credentials must not live on personal infrastructure
 - **Existing tools I already have set up:
 
   (e.g., "I already use Obsidian", "I have a DigitalOcean droplet", "I'm comfortable with the terminal")
