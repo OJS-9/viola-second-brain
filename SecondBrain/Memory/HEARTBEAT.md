@@ -19,12 +19,14 @@
 
 ## Weekly digest (Sunday 08:00) *(inactive — Phase 6b)*
 
-Format: analyst brief per sector — what happened, why it matters for Viola, companies worth a look. Save to `content/digests/` + Notion page. <!-- BOOTSTRAP: format/length prefs -->
+Format: **one-pager** — top 3-5 items per sector, each item 1-2 lines (what happened + why it matters for Viola). Save as a **vault file** in `content/digests/YYYY-WNN.md` (no Notion page — Or reads it in chat and asks to elaborate on interesting items, so each item ends with sources for follow-up). Sunday 08:00.
 
-**Cybersecurity queries:**
+**Cybersecurity queries** (score hits against `research/thesis-cybersecurity.md` — flag profile matches):
 - cybersecurity startup funding round announced
-- new cybersecurity product launch enterprise
 - cybersecurity startup Israel stealth emerged
+- AI generated code security / cloud misconfiguration autonomous remediation startup   ← thesis #1 build-to-secure
+- human risk management / social engineering prevention startup                        ← thesis #2 human factor
+- autonomous risk remediation / exposure management startup                            ← thesis #3 risk remediation
 
 **AI infrastructure queries:**
 - AI infrastructure startup funding round
