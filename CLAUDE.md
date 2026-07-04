@@ -43,7 +43,7 @@ Being built on a private MacBook (macOS) but will be moved to and run on a Windo
 
 ## Completed Phases
 
-- **Phase 1 (2026-07-03):** Memory vault created at `SecondBrain/Memory/` with pre-filled SOUL/USER/MEMORY/HEARTBEAT from the requirements interview. BOOTSTRAP.md covers only remaining gaps (tone, drafting criteria, digest prefs, asset locations) — run it conversationally if present.
+- **Phase 1 (2026-07-03):** Memory vault created at `SecondBrain/Memory/` with pre-filled SOUL/USER/MEMORY/HEARTBEAT. BOOTSTRAP onboarding completed same day (archived to `archive/`): blunt pushback, English-only email drafts, on-demand drafting (no auto-scan), every-finding notifications, one-pager digest as vault file, cybersecurity thesis profiles in `research/thesis-cybersecurity.md`, IC Deck Structure Notion page as living slide framework. Pending deliveries tracked in USER.md.
 
 ## Out of Scope
 
