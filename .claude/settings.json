@@ -1,0 +1,78 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": [
+              "run",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}/.claude/scripts",
+              "python",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session_start_context.py"
+            ],
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": [
+              "run",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}/.claude/scripts",
+              "python",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_compact_flush.py"
+            ],
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": [
+              "run",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}/.claude/scripts",
+              "python",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session_end_flush.py"
+            ],
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Bash|Grep|Edit|Write|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/block_secrets.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

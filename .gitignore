@@ -2,6 +2,7 @@
 *.env
 !master.env.example
 .claude/data/
+.venv/
 __pycache__/
 .DS_Store
 CLAUDE.local.md
