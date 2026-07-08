@@ -7,6 +7,7 @@ so nothing is hardcoded to a specific machine.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -57,6 +58,16 @@ SEARCH_KEYWORD_WEIGHT = 0.3
 # Hybrid search always pulls this many candidates from EACH side (keyword and
 # vector) before merging/ranking — independent of the final --limit requested.
 SEARCH_HYBRID_FETCH_K = 20
+
+# === Integrations (Phase 4) ===
+# Never print/log these values — Python modules authenticate and pass only
+# data back to the LLM (API key isolation, per PRD global conventions).
+NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")
+NIMBLE_API_KEY = os.getenv("NIMBLE_API_KEY", "")
+
+NIMBLE_BASE_URL = "https://sdk.nimbleway.com"
+# Credit usage is auditable but not a full cost dashboard — one line per call.
+NIMBLE_USAGE_LOG = STATE_DIR / "nimble-usage.log"
 
 
 def now_local() -> datetime:

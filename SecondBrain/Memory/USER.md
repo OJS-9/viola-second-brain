@@ -18,7 +18,7 @@
 
 | Platform | Route | Notes |
 |---|---|---|
-| Notion (docs + tasks — center of gravity) | API token (`.env`) | Task DB ID: <!-- fill in Phase 4.1 --> |
+| Notion (docs + tasks — center of gravity) | API token (`.env`) | Task DB ID: `3414e09e-86f3-80c8-bfd0-f1e0146be352` ("Tasks Tracker" — Or's confirmed unified personal+work task tracker, 2026-07-08) |
 | Web research | Nimbleway API (`.env`) | digest + DD fetching |
 | Outlook mail + calendar | Claude connector | no Graph app — avoid IT |
 | Personal Google Calendar | API, read-only | publish OAuth app to Production (7-day token trap) |
@@ -48,7 +48,8 @@
 - **IC Deck Structure (slide framework):** Notion page in the WORK workspace — https://app.notion.com/p/IC-Deck-Structure-363d4a10e39a81c9b0a3ec18eb481122 (page ID `363d4a10e39a81c9b0a3ec18eb481122`). This is the CONTENT framework for decks. **Living document:** after each deck we produce, run a retro and propose updates/optimizations to this page — updates applied only after Or approves (it's a work page). Accessible once work Notion is connected; until then, Or can paste its content for caching in `methods/`.
 - **PENDING — visual .pptx template:** any Viola deck to render into (python-pptx needs the theme/layouts). Needed by Phase 5 slide-generator.
 - **PENDING — competitors skill location:** path/repo of the existing skill, to wrap as `dd-competition`. Needed by Phase 5.
-- **PENDING — Nimble API key:** Or creates `.claude/scripts/.env` with `NIMBLE_API_KEY=...` (never pasted in chat). Needed by Phase 4.2.
+- **RESOLVED — Notion API key:** `.claude/scripts/.env` created 2026-07-08 (was briefly misnamed `.env.txt`, fixed same day). Live-tested: `notion whoami` authenticates, `notion tasks --database-id 3414e09e-86f3-80c8-bfd0-f1e0146be352` returned 5 real open tasks with correct structure.
+- **RESOLVED — Nimble API key:** live-tested successfully 2026-07-08 (`nimble search`/`nimble extract` both hit the real API). Note: `NIMBLE_API_KEY` is currently resolving from an OS/session environment variable, not from `.claude/scripts/.env` — worth adding to `.env` directly for durability across shells/machines.
 
 ## Team context
 
