@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28.1",
     "notion-client>=3.1.0",
     "numpy>=2.5.1",
+    "pandas>=3.0.3",
     "python-dotenv>=1.2.2",
     "sqlite-vec>=0.1.9",
     "tzdata>=2026.2",

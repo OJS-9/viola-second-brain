@@ -8,7 +8,7 @@
 - [ ] Open Notion tasks: anything due in 48h with no recent activity? → nudge
 - [ ] New action items spotted in email → propose as Notion tasks (create only after approval)
 - [ ] Personal Google Calendar: next meeting soon? → prep prompt if it's an external meeting
-- [ ] Outlook inbox triage *(pending connector test — may move to on-session morning-triage)*
+- [ ] ~~Outlook inbox triage~~ **moved to on-session `morning-triage` flow, not background polling** — headless connector test (2026-07-08) confirmed the Outlook connector is unreachable from a headless Agent SDK session (`setting_sources=["user"]` sees Google Calendar but no Outlook tool; interactive sessions see Outlook fine). Same OAuth-through-Claude-app model applies to Affinity — treat any Affinity heartbeat check the same way if one is ever added. See PRD Phase 4.3 implementation note.
 - [ ] Drafts in `drafts/active/` older than 24h → move to `drafts/expired/`
 - Only surface NEW or CHANGED items vs. the last run (state diffing). No repeat alerts.
 
@@ -44,3 +44,7 @@ Format: **one-pager** — top 3-5 items per sector, each item 1-2 lines (what ha
 
 - Review yesterday's `daily/` log → promote durable decisions/lessons/facts to MEMORY.md
 - Never edit SOUL.md (write-protected) — suggestions go to the daily log
+
+## DD flows: Affinity (on-demand, not a heartbeat check)
+
+Affinity is read-only, on-demand — not part of any scheduled heartbeat run (same connector-reachability limits as Outlook, see the note above: only reachable in an interactive session, not headless). When a DD flow needs founder/company classification, call the existing Affinity connector tools directly (`search_companies_top_matches`, `get_company_info`, `search_persons`, etc.) in-session. Read-only usage only — no create/update calls against Affinity from an agent flow without Or's explicit ask.

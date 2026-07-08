@@ -23,6 +23,10 @@ HOOKS_DIR = CLAUDE_DIR / "hooks"
 MEMORY_DIR = PROJECT_ROOT / "SecondBrain" / "Memory"
 DAILY_DIR = MEMORY_DIR / "daily"
 
+# === Data drops (Phase 4.6: Snowflake, no direct connection) ===
+DATA_DROPS_DIR = PROJECT_ROOT / "SecondBrain" / "data-drops"
+DATA_DROPS_PROCESSED_DIR = DATA_DROPS_DIR / "processed"
+
 # .claude/data/ is already gitignored — per-machine, regenerable state
 DATA_DIR = CLAUDE_DIR / "data"
 STATE_DIR = DATA_DIR / "state"
@@ -86,5 +90,12 @@ def get_today_log_path() -> Path:
 
 def ensure_directories() -> None:
     """Ensure all required directories exist."""
-    for directory in (DATA_DIR, STATE_DIR, DAILY_DIR, EMBEDDING_CACHE_DIR):
+    for directory in (
+        DATA_DIR,
+        STATE_DIR,
+        DAILY_DIR,
+        EMBEDDING_CACHE_DIR,
+        DATA_DROPS_DIR,
+        DATA_DROPS_PROCESSED_DIR,
+    ):
         directory.mkdir(parents=True, exist_ok=True)
