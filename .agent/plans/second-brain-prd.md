@@ -91,6 +91,8 @@ SecondBrain/Memory/
 
 **Dependencies:** Phase 1 (vault exists). **Complexity: Medium.**
 
+**Implementation note (built 2026-07-05):** built SQLite-only — no Postgres, no `Protocol`/factory abstraction, no `DATABASE_URL` — per `MEMORY.md`'s "2026-07-03 — Local-only, no VPS" decision; a dual-backend abstraction would add complexity with no deployment target to justify it, and this user (Or) is a Python/SQL/Flask beginner who benefits from a simpler, single-path module. Hybrid scoring implements the literal min-max normalization algorithm described above (fetch top `SEARCH_HYBRID_FETCH_K`=20 from each side, min-max normalize each side to 0-1 independently with an equal/single-candidate edge case defaulting to 1.0 rather than dividing by zero, then `0.7*vector + 0.3*keyword`) rather than a reciprocal `1/(1+x)` scoring scheme, matching this document's spec exactly. The KNN insurance fallback was built as specified: every chunk's embedding is stored twice (once in the `vec_chunks` vec0 table, once as a plain BLOB column on `chunks`), and `vector_search()` catches any exception from the vec0 MATCH query and falls back to a standalone, vectorized numpy `knn()` (cosine similarity via one matrix dot-product, no sqlite dependency) — verified directly with hand-built synthetic vectors (a near-parallel vector correctly outranked an orthogonal one) rather than by forcing sqlite-vec itself to fail. The sqlite-vec Windows wheel claim checked out: `sqlite-vec` 0.1.9 ships `sqlite_vec-0.1.9-py3-none-win_amd64.whl` on PyPI, confirmed present in `uv.lock` and installed/loading cleanly from inside the `.claude/scripts` venv on this machine.
+
 ---
 
 ## Phase 4: Integrations
