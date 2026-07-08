@@ -27,5 +27,5 @@ ones that hold up, then mark them with the issue link.
 
 ## Opened Issues
 
-- [ ] **Memory flush on session end** — https://github.com/OJS-9/nanoclaw/issues/TBD (verified missing, pre-check complete, ready to file)
-- [ ] **Hybrid memory search** — https://github.com/OJS-9/nanoclaw/issues/TBD (verified missing, pre-check complete, ready to file)
+- [x] **Claude Code lifecycle hooks for context persistence** — https://github.com/OJS-9/nanoclaw/issues/48
+- [x] **Local hybrid (keyword + semantic) search over memory files** — https://github.com/OJS-9/nanoclaw/issues/49
