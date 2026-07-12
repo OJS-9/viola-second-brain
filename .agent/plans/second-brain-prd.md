@@ -160,6 +160,23 @@ The existing Claude Code connection + founder-classification skill. No Python mo
 **Key files:** `.claude/skills/<name>/SKILL.md` (+ `scripts/`, `references/`).
 
 1. **`vault-structure`** — teaches the folder layout, file naming, YAML frontmatter conventions, checkbox syntax. Low.
+
+   **Implementation note (2026-07-08):** built as `.claude/skills/vault-structure/SKILL.md` — a
+   pure reference doc (no `scripts/`, genuinely not needed here), matching the frontmatter/style
+   of `dealigence-classify` and `create-second-brain-prd`. Everything in it traces back to real,
+   already-established precedent in this repo: the folder table and frontmatter fields come
+   straight from `CLAUDE.md`'s "Key paths"/"Vault conventions"; the frontmatter example is lifted
+   verbatim from `research/thesis-cybersecurity.md`; the checkbox convention (`- [ ]` /
+   `- [x] ... (date)`, grouped under headings) is drawn from real usage in `backport-ideas.md` and
+   `archive/BOOTSTRAP-completed-2026-07-03.md`. **One thing had to be proposed rather than found:**
+   a file-naming convention for `companies/`, `people/`, and future `research/` topic notes.
+   Those folders currently hold zero real files (`.gitkeep` only) — only `daily/YYYY-MM-DD.md` and
+   `content/digests/YYYY-WNN.md` are actually established namings in `CLAUDE.md`. The skill
+   proposes kebab-case (`companies/acme-security.md`, `people/jane-doe.md`), flagged explicitly as
+   unconfirmed, to be validated with Or the first time a real company/people note gets created.
+   `index.md` (the vault catalog mentioned in Phase 1/5) still does not exist — left as an open
+   Phase 5 item, out of scope for this skill specifically (it's an indexing/lint task, not a
+   documentation-of-conventions task).
 2. **The DD skill family** — not one monolithic skill: one skill per DD dimension, mirroring how Or actually works, each maintaining its own living SOP in `SecondBrain/Memory/methods/`:
    - `dd-market` — market sizing, category dynamics, timing ("why now")
    - `dd-competition` — **wraps Or's existing competitors skill** (ready today — plug in, don't rebuild)
@@ -167,6 +184,10 @@ The existing Claude Code connection + founder-classification skill. No Python mo
    - `dd-problem-solution` — problem validation and product/solution assessment
    - `dd-game-plan` — the VC thesis: round dynamics, ownership, why Viola wins
    A shared `dd-core` reference defines common conventions: sourcing rules, verified/unverified tagging, output format. Each skill is built by interviewing Or about how he approaches that dimension today (sop-creator pattern), and after each real DD a 5-minute retro updates the relevant SOPs — Or is building his own craft here, not just automating. Skills ship incrementally: start with dd-competition (exists) + dd-market, add the rest as they're needed on real deals. Medium.
+
+   **Implementation note (2026-07-08):** `dd-founders` and `dd-competition` are both filled, ahead of the rest of the family, by migrating existing tools rather than building from scratch:
+   - `dd-competition` -> the global `competitive-landscape` skill (in Or's personal skill set, not project-local — available in any session, no file work needed here). Maps competitors across 4 layers (direct, adjacent, market leaders, client innovation arms).
+   - `dd-founders` -> `.claude/skills/dealigence-classify/` (migrated from a separate, older project — `Tasks/0. Dealflow/Analyst_Agent` — which is pending a later, separate archival step). **Scope gap to flag:** Dealigence classify scores *new inbound* stealth-founder leads against Viola's thesis (Star/Lead-High/Lead-Mid/Lead-Low tiers, via LinkedIn + a calibrated rubric) — it is not reference-call prep or founder background-checking for an **active** deal already in diligence. `dd-founders`'s originally-scoped job (background/track record/reference prep on a known deal) isn't really covered by this skill. Revisit whether `dd-founders` needs a second, narrower skill for the active-deal case, or whether Dealigence classify's rubric + LinkedIn-fetch mechanics can be reused for that too.
 3. **`slide-generator`** — two inputs, cleanly separated (BOOTSTRAP 2026-07-03):
    - **Content framework:** Or's "IC Deck Structure" Notion page (work workspace, page ID `363d4a10e39a81c9b0a3ec18eb481122`) — defines what slides an IC deck has and what each covers. Read via Notion when connected (cache a copy in `methods/`). **Living document:** after each deck produced, run a retro and propose optimizations to that page — applied only after Or approves.
    - **Visual template:** any Viola .pptx (pending from Or). python-pptx (v1.0.2, pure Python, no PowerPoint needed, identical on Mac/Windows) renders a **JSON slide-spec** (`{"layout": "<name>", "placeholders": {idx: content}}`) into it. Setup: inspector script dumps each layout's name + placeholder idx/types into `references/template-map.md`; reference layouts by name, placeholders by idx; template owns all styling. Limitations: add new slides from layouts (don't mutate existing), no SmartArt, no preview — output opens in PowerPoint for review (approval loop before any deck leaves the machine). Medium.

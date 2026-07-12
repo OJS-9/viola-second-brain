@@ -26,6 +26,7 @@
 | Snowflake | data-drop only | Or exports CSV/XLSX → `SecondBrain/data-drops/` |
 | WhatsApp / Teams | none in v1 | Teams barely used |
 | PitchBook | manual/browser | no API access |
+| Dropbox (Viola team space) | existing Claude connector | read-only for now. Live-tested 2026-07-08: authenticates as Or, team "Viola", root shows "Team Paper Docs" + personal folder. Same interactive-session-only limitation as Outlook/Affinity — useful for pulling decks/data-room material during DD, not for background jobs |
 
 ## Drafting criteria
 
@@ -47,7 +48,8 @@
 
 - **IC Deck Structure (slide framework):** Notion page in the WORK workspace — https://app.notion.com/p/IC-Deck-Structure-363d4a10e39a81c9b0a3ec18eb481122 (page ID `363d4a10e39a81c9b0a3ec18eb481122`). This is the CONTENT framework for decks. **Living document:** after each deck we produce, run a retro and propose updates/optimizations to this page — updates applied only after Or approves (it's a work page). Accessible once work Notion is connected; until then, Or can paste its content for caching in `methods/`.
 - **PENDING — visual .pptx template:** any Viola deck to render into (python-pptx needs the theme/layouts). Needed by Phase 5 slide-generator.
-- **PENDING — competitors skill location:** path/repo of the existing skill, to wrap as `dd-competition`. Needed by Phase 5.
+- **RESOLVED — competitors skill location:** `dd-competition` maps to the global `competitive-landscape` skill (personal skill set, not project-local — available in any session, no file work needed). Confirmed 2026-07-08 during the Dealigence classify migration.
+- **Dealigence classify skill:** migrated 2026-07-08 to `.claude/skills/dealigence-classify/` (fills the Phase 5 `dd-founders` slot) from a separate project (`Tasks/0. Dealflow/Analyst_Agent`, left untouched pending later archival). Scores new inbound Dealigence stealth-founder leads against Viola's thesis via Affinity MCP + Nimble LinkedIn scraping. Note: this is not reference-call prep for an active deal — see the PRD's Phase 5 scope-gap note.
 - **PENDING — Google Calendar OAuth (Phase 4.4):** deferred by Or 2026-07-08 — needs a Google Cloud Console project (create project, enable Calendar API, create a Desktop OAuth client, download `credentials.json`, publish consent screen to Production to avoid the 7-day token expiry). **At the start of every session, ask Or whether he wants to set this up now.** Stop asking once it's done, or if Or says to stop.
 - **RESOLVED — Notion API key:** `.claude/scripts/.env` created 2026-07-08 (was briefly misnamed `.env.txt`, fixed same day). Live-tested: `notion whoami` authenticates, `notion tasks --database-id 3414e09e-86f3-80c8-bfd0-f1e0146be352` returned 5 real open tasks with correct structure.
 - **RESOLVED — Nimble API key:** live-tested successfully 2026-07-08 (`nimble search`/`nimble extract` both hit the real API). Note: `NIMBLE_API_KEY` is currently resolving from an OS/session environment variable, not from `.claude/scripts/.env` — worth adding to `.env` directly for durability across shells/machines.
